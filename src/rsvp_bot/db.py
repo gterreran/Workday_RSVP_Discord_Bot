@@ -6,6 +6,7 @@ from typing import Optional, Sequence
 
 import aiosqlite
 
+DEFAULT_OFFSETS_MIN = "2880,1440,360,60"  # 48h, 24h, 6h, 1h
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -46,6 +47,22 @@ CREATE TABLE IF NOT EXISTS rsvps (
   note                  TEXT,
   updated_at_ts         INTEGER NOT NULL,
   PRIMARY KEY (guild_id, channel_id, workday_date, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS channel_settings (
+  guild_id            INTEGER NOT NULL,
+  channel_id          INTEGER NOT NULL,
+  reminder_offsets    TEXT NOT NULL,   -- comma-separated minutes, e.g. "2880,1440,360,60"
+  PRIMARY KEY (guild_id, channel_id)
+);
+
+CREATE TABLE IF NOT EXISTS sent_reminders (
+  guild_id            INTEGER NOT NULL,
+  channel_id          INTEGER NOT NULL,
+  workday_date        TEXT NOT NULL,
+  offset_min          INTEGER NOT NULL,
+  sent_at_ts          INTEGER NOT NULL,
+  PRIMARY KEY (guild_id, channel_id, workday_date, offset_min)
 );
 """
 
@@ -186,3 +203,131 @@ class DB:
             )
             rows = await cur.fetchall()
             return [int(r["user_id"]) for r in rows]
+        
+    async def directory_remove(self, *, guild_id: int, channel_id: int, user_id: int) -> None:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                """
+                UPDATE directory
+                SET active=0
+                WHERE guild_id=? AND channel_id=? AND user_id=?
+                """,
+                (guild_id, channel_id, user_id),
+            )
+            await db.commit()
+
+
+    async def ensure_settings(self, *, guild_id: int, channel_id: int) -> None:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                """
+                INSERT OR IGNORE INTO channel_settings (guild_id, channel_id, reminder_offsets)
+                VALUES (?, ?, ?)
+                """,
+                (guild_id, channel_id, DEFAULT_OFFSETS_MIN),
+            )
+            await db.commit()
+
+
+    async def get_reminder_offsets(self, *, guild_id: int, channel_id: int) -> list[int]:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT reminder_offsets
+                FROM channel_settings
+                WHERE guild_id=? AND channel_id=?
+                """,
+                (guild_id, channel_id),
+            )
+            row = await cur.fetchone()
+            if not row:
+                return [2880, 1440, 360, 60]
+            raw = str(row["reminder_offsets"]).strip()
+            if not raw:
+                return [2880, 1440, 360, 60]
+            out: list[int] = []
+            for part in raw.split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                out.append(int(part))
+            return sorted(set(out), reverse=True)
+
+
+    async def set_reminder_offsets(self, *, guild_id: int, channel_id: int, offsets_min: list[int]) -> None:
+        offsets_min = sorted(set(int(x) for x in offsets_min if int(x) > 0), reverse=True)
+        raw = ",".join(str(x) for x in offsets_min) if offsets_min else DEFAULT_OFFSETS_MIN
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                """
+                INSERT INTO channel_settings (guild_id, channel_id, reminder_offsets)
+                VALUES (?, ?, ?)
+                ON CONFLICT(guild_id, channel_id) DO UPDATE SET reminder_offsets=excluded.reminder_offsets
+                """,
+                (guild_id, channel_id, raw),
+            )
+            await db.commit()
+
+
+    async def reminder_already_sent(
+        self, *, guild_id: int, channel_id: int, workday_date: str, offset_min: int
+    ) -> bool:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT 1
+                FROM sent_reminders
+                WHERE guild_id=? AND channel_id=? AND workday_date=? AND offset_min=?
+                """,
+                (guild_id, channel_id, workday_date, offset_min),
+            )
+            row = await cur.fetchone()
+            return row is not None
+
+
+    async def mark_reminder_sent(
+        self, *, guild_id: int, channel_id: int, workday_date: str, offset_min: int, sent_at_ts: int
+    ) -> None:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                """
+                INSERT OR IGNORE INTO sent_reminders (guild_id, channel_id, workday_date, offset_min, sent_at_ts)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (guild_id, channel_id, workday_date, offset_min, sent_at_ts),
+            )
+            await db.commit()
+
+
+    async def clear_rsvps(self, *, guild_id: int, channel_id: int, workday_date: str) -> int:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                DELETE FROM rsvps
+                WHERE guild_id=? AND channel_id=? AND workday_date=?
+                """,
+                (guild_id, channel_id, workday_date),
+            )
+            await db.commit()
+            return cur.rowcount or 0
+
+
+    async def clear_sent_reminders(self, *, guild_id: int, channel_id: int, workday_date: str) -> int:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                DELETE FROM sent_reminders
+                WHERE guild_id=? AND channel_id=? AND workday_date=?
+                """,
+                (guild_id, channel_id, workday_date),
+            )
+            await db.commit()
+            return cur.rowcount or 0
