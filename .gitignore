@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.dist-info/
+
+# Environments
+.env
+.venv/
+.envrc
+
+# Conda
+conda-meta/
+
+# SQLite
+*.db
+data/
+
+# OS junk
+.DS_Store
