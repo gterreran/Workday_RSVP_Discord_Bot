@@ -1,3 +1,5 @@
+# rsvp_bot/db.py
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -63,6 +65,16 @@ CREATE TABLE IF NOT EXISTS sent_reminders (
   offset_min          INTEGER NOT NULL,
   sent_at_ts          INTEGER NOT NULL,
   PRIMARY KEY (guild_id, channel_id, workday_date, offset_min)
+);
+
+CREATE TABLE IF NOT EXISTS work_pairs (
+  guild_id      INTEGER NOT NULL,
+  channel_id    INTEGER NOT NULL,
+  workday_date  TEXT NOT NULL,
+  user_id       INTEGER NOT NULL,  -- the person who wrote the plan
+  partner_id    INTEGER NOT NULL,  -- the person they plan to work with
+  created_at_ts INTEGER NOT NULL,
+  PRIMARY KEY (guild_id, channel_id, workday_date, user_id, partner_id)
 );
 """
 
@@ -148,18 +160,22 @@ class DB:
         workday_date: str,
         user_id: int,
         status: str,
+        note: str | None,
         updated_at_ts: int,
     ) -> None:
         async with self.connect() as db:
             db.row_factory = aiosqlite.Row
             await db.execute(
                 """
-                INSERT INTO rsvps (guild_id, channel_id, workday_date, user_id, status, updated_at_ts)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO rsvps (guild_id, channel_id, workday_date, user_id, status, note, updated_at_ts)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(guild_id, channel_id, workday_date, user_id)
-                DO UPDATE SET status=excluded.status, updated_at_ts=excluded.updated_at_ts
+                DO UPDATE SET
+                status=excluded.status,
+                note=excluded.note,
+                updated_at_ts=excluded.updated_at_ts
                 """,
-                (guild_id, channel_id, workday_date, user_id, status, updated_at_ts),
+                (guild_id, channel_id, workday_date, user_id, status, note, updated_at_ts),
             )
             await db.commit()
 
@@ -168,7 +184,7 @@ class DB:
             db.row_factory = aiosqlite.Row
             cur = await db.execute(
                 """
-                SELECT user_id, status
+                SELECT user_id, status, note
                 FROM rsvps
                 WHERE guild_id=? AND channel_id=? AND workday_date=?
                 """,
@@ -176,6 +192,21 @@ class DB:
             )
             rows = await cur.fetchall()
             return [(int(r["user_id"]), str(r["status"])) for r in rows]
+
+    async def list_rsvps_with_notes(self, *, guild_id: int, channel_id: int, workday_date: str) -> list[tuple[int, str, str | None]]:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT user_id, status, note
+                FROM rsvps
+                WHERE guild_id=? AND channel_id=? AND workday_date=?
+                """,
+                (guild_id, channel_id, workday_date),
+            )
+            rows = await cur.fetchall()
+            return [(int(r["user_id"]), str(r["status"]), (str(r["note"]) if r["note"] is not None else None)) for r in rows]
+
 
     async def directory_add(self, *, guild_id: int, channel_id: int, user_id: int, added_by: int, added_at_ts: int) -> None:
         async with self.connect() as db:
@@ -331,3 +362,114 @@ class DB:
             )
             await db.commit()
             return cur.rowcount or 0
+        
+    async def replace_work_partners(
+        self,
+        *,
+        guild_id: int,
+        channel_id: int,
+        workday_date: str,
+        user_id: int,
+        partner_ids: list[int],
+        created_at_ts: int,
+    ) -> None:
+        partner_ids = sorted(set(int(x) for x in partner_ids if int(x) != user_id))
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                """
+                DELETE FROM work_pairs
+                WHERE guild_id=? AND channel_id=? AND workday_date=? AND user_id=?
+                """,
+                (guild_id, channel_id, workday_date, user_id),
+            )
+            for pid in partner_ids:
+                await db.execute(
+                    """
+                    INSERT OR IGNORE INTO work_pairs (guild_id, channel_id, workday_date, user_id, partner_id, created_at_ts)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (guild_id, channel_id, workday_date, user_id, pid, created_at_ts),
+                )
+            await db.commit()
+
+
+    async def get_dependent_users(
+        self,
+        *,
+        guild_id: int,
+        channel_id: int,
+        workday_date: str,
+        partner_id: int,
+    ) -> list[int]:
+        """Return user_ids who listed partner_id as someone they plan to work with."""
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT user_id
+                FROM work_pairs
+                WHERE guild_id=? AND channel_id=? AND workday_date=? AND partner_id=?
+                """,
+                (guild_id, channel_id, workday_date, partner_id),
+            )
+            rows = await cur.fetchall()
+            return [int(r["user_id"]) for r in rows]
+    
+    async def get_rsvp(self, *, guild_id: int, channel_id: int, workday_date: str, user_id: int) -> tuple[str, str | None] | None:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT status, note
+                FROM rsvps
+                WHERE guild_id=? AND channel_id=? AND workday_date=? AND user_id=?
+                """,
+                (guild_id, channel_id, workday_date, user_id),
+            )
+            row = await cur.fetchone()
+            if not row:
+                return None
+            return (str(row["status"]), (str(row["note"]) if row["note"] is not None else None))
+        
+    
+    async def list_work_partners_map(self, *, guild_id: int, channel_id: int, workday_date: str) -> dict[int, list[int]]:
+        """
+        Return mapping user_id -> sorted list of partner_ids for the given workday.
+        """
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT user_id, partner_id
+                FROM work_pairs
+                WHERE guild_id=? AND channel_id=? AND workday_date=?
+                ORDER BY user_id, partner_id
+                """,
+                (guild_id, channel_id, workday_date),
+            )
+            rows = await cur.fetchall()
+
+        out: dict[int, list[int]] = {}
+        for r in rows:
+            user_id = int(r["user_id"])
+            partner_id = int(r["partner_id"])
+            out.setdefault(user_id, []).append(partner_id)
+
+        # de-dupe + sort
+        for k in list(out.keys()):
+            out[k] = sorted(set(out[k]))
+        return out
+
+    async def clear_work_partners(self, *, guild_id: int, channel_id: int, workday_date: str) -> int:
+        async with self.connect() as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                DELETE FROM work_pairs
+                WHERE guild_id=? AND channel_id=? AND workday_date=?
+                """,
+                (guild_id, channel_id, workday_date),
+            )
+            await db.commit()
+            return int(cur.rowcount or 0)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
+import re
 
 
 def next_saturday(today: date) -> date:
@@ -21,3 +22,11 @@ def default_deadline_for(workday: date) -> datetime:
 def discord_ts(dt: datetime) -> str:
     # Discord timestamp markup: <t:unix:f>
     return f"<t:{int(dt.timestamp())}:f>"
+
+_MENTION_RE = re.compile(r"<@!?(\d+)>")
+
+def extract_mentioned_user_ids(text: str) -> list[int]:
+    """
+    Extract Discord user IDs from @mentions in the form <@123> or <@!123>.
+    """
+    return [int(m.group(1)) for m in _MENTION_RE.finditer(text or "")]
