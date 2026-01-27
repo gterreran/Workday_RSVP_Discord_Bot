@@ -359,7 +359,7 @@ async def setup(interaction: discord.Interaction):
     summary = build_summary(directory=directory, rsvps=rsvps)
     embed = build_embed(workday_date=workday_date, deadline_ts=deadline_ts, summary=summary)
 
-    view = RSVPView(on_choice=bot._set_rsvp_and_refresh, on_choice_with_note=bot._open_note_modal)
+    view = RSVPView(on_choice=bot._set_rsvp_and_refresh, on_choice_with_plan=bot._open_plan_modal)
     msg = await interaction.channel.send(embed=embed, view=view)
 
     try:
@@ -607,7 +607,7 @@ async def deadline_in(interaction: discord.Interaction, minutes: int):
 
     try:
         msg = await interaction.channel.fetch_message(row.rsvp_message_id)
-        await msg.edit(embed=embed, view=RSVPView(on_choice=bot._set_rsvp_and_refresh, on_choice_with_note=bot._open_note_modal))
+        await msg.edit(embed=embed, view=RSVPView(on_choice=bot._set_rsvp_and_refresh, on_choice_with_plan=bot._open_plan_modal))
     except discord.NotFound:
         pass
 
