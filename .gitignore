@@ -1,20 +1,21 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.dist-info/
+# macOS
+__MACOSX/
+.DS_Store
 
-# Environments
+# secrets
 .env
-.venv/
-.envrc
 
-# Conda
-conda-meta/
-
-# SQLite
+# local runtime data
 *.db
 data/
+src/data/
 
-# OS junk
-.DS_Store
+# build artifacts
+*.egg-info/
+dist/
+build/
+.venv/
+__pycache__/
+.pytest_cache/
+_build/
+docs/_build/

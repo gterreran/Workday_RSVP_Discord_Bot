@@ -1,6 +1,6 @@
 # Workday RSVP Discord Bot
 
-A Discord bot that collects attendance declarations for upcoming Saturday workdays.
+A Discord bot that collects attendance declarations for upcoming workdays.
 
 ## Features
 - Per-channel RSVP tracking
