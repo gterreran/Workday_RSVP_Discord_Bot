@@ -87,7 +87,7 @@ From the repository root:
    source .venv/bin/activate
    python -m pip install -U pip
 
-Install the package
+Install the package (base)
 -------------------
 
 Install the project so the ``rsvp_bot`` package is importable:
@@ -99,6 +99,21 @@ Install the project so the ``rsvp_bot`` package is importable:
 If your project uses a different workflow (uv/poetry/pip-tools), install the
 package in whatever way you prefer. The requirement for the docs and scripts is
 that ``import rsvp_bot`` succeeds.
+
+
+Optional extras
+---------------
+
+.. code-block:: bash
+
+   # Test dependencies
+   pip install -e ".[test]"
+
+   # Documentation dependencies
+   pip install -e ".[docs]"
+
+   # Everything for development (docs + tests + tooling)
+   pip install -e ".[dev]"
 
 Environment variables
 ---------------------
@@ -130,10 +145,18 @@ Start the bot with:
 
 .. code-block:: bash
 
-   python -m rsvp_bot.bot
+   rsvp-bot
 
 You should see the bot connect and then sync commands.
 This may take a few seconds on the first run.
+
+.. note::
+
+   You can also run the bot as a module (useful during development):
+
+   .. code-block:: bash
+
+      python -m rsvp_bot.bot
 
 Verify command installation
 ---------------------------

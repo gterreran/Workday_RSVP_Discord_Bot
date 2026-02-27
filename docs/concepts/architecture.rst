@@ -97,14 +97,9 @@ Package map
   Views use stable ``custom_id`` values so button clicks can be routed across restarts.
 
 **Bot initialization**
-  ``src/rsvp_bot/bot.py`` wires everything together:
-
-  - initializes the DB
-  - instantiates services
-  - registers slash commands
-  - registers persistent views so existing panels remain interactive after restart
-  - starts scheduler loops (reminders, rollover)
-
+  ``src/rsvp_bot/bot.py`` wires everything together and provides the CLI entrypoint
+  (:func:`~rsvp_bot.bot.main`). The packaged console script is ``rsvp-bot``.
+  
 Key concepts and where they live
 --------------------------------
 

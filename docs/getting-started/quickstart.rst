@@ -36,6 +36,13 @@ First-time admin workflow
 Once the bot is running and slash commands are synced, the initial setup usually
 takes less than a minute.
 
+Step 0 — Start the bot
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   rsvp-bot
+
 Step 1 — Create the RSVP panel
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

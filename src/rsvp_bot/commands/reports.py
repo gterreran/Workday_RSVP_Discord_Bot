@@ -225,16 +225,14 @@ def register_report_commands(bot) -> None:
     -------
     :class:`None`
     """
-    bot.tree.command(
+    @bot.tree.command(
         name="summary",
         description="Show RSVP status (notes + partners) for everyone in the directory (admin only).",
-    )(
-        in_guild_text_channel()(
-            is_admin()(
-                lambda interaction: summary_cmd(bot, interaction)
-            )
-        )
     )
+    @in_guild_text_channel()
+    @is_admin()
+    async def _summary(interaction: discord.Interaction) -> None:
+        await summary_cmd(bot, interaction)
 
 
 __all__ = [

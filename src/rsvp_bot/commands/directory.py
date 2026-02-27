@@ -236,44 +236,36 @@ def register_directory_commands(bot) -> None:
     """
 
     # /directory_add
-    bot.tree.command(
+    @bot.tree.command(
         name="directory_add",
         description="Add a user to this channel's RSVP directory (admin only).",
-    )(
-        in_guild_text_channel()(
-            is_admin()(
-                app_commands.describe(user="User to add")(
-                    lambda interaction, user: directory_add_cmd(bot, interaction, user)
-                )
-            )
-        )
     )
+    @in_guild_text_channel()
+    @is_admin()
+    @app_commands.describe(user="User to add")
+    async def _directory_add(interaction: discord.Interaction, user: discord.Member) -> None:
+        await directory_add_cmd(bot, interaction, user)
 
     # /directory_remove
-    bot.tree.command(
+    @bot.tree.command(
         name="directory_remove",
         description="Remove a user from this channel's RSVP directory (admin only).",
-    )(
-        in_guild_text_channel()(
-            is_admin()(
-                app_commands.describe(user="User to remove")(
-                    lambda interaction, user: directory_remove_cmd(bot, interaction, user)
-                )
-            )
-        )
     )
+    @in_guild_text_channel()
+    @is_admin()
+    @app_commands.describe(user="User to remove")
+    async def _directory_remove(interaction: discord.Interaction, user: discord.Member) -> None:
+        await directory_remove_cmd(bot, interaction, user)
 
     # /directory_list
-    bot.tree.command(
+    @bot.tree.command(
         name="directory_list",
         description="Show the current RSVP directory for this channel (admin only).",
-    )(
-        in_guild_text_channel()(
-            is_admin()(
-                lambda interaction: directory_list_cmd(bot, interaction)
-            )
-        )
     )
+    @in_guild_text_channel()
+    @is_admin()
+    async def _directory_list(interaction: discord.Interaction) -> None:
+        await directory_list_cmd(bot, interaction)
 
 
 __all__ = [
