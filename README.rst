@@ -1,4 +1,4 @@
-.. image:: docs/_static/logo.png
+.. image:: docs/_static/rsvp_bot.png
    :alt: Workday RSVP Discord Bot logo
    :height: 100px
    :align: center
