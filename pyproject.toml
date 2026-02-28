@@ -80,4 +80,4 @@ testpaths = ["tests"]
 filterwarnings = [
   "ignore::DeprecationWarning:discord.*",
 ]
-
+asyncio_mode = "auto"

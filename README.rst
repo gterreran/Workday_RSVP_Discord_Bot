@@ -6,6 +6,10 @@
 Workday RSVP Discord Bot
 ========================
 
+.. image:: https://github.com/gterreran/Workday_RSVP_Discord_Bot/actions/workflows/ci.yml/badge.svg
+   :target: https://github.com/gterreran/Workday_RSVP_Discord_Bot/actions
+   :alt: CI
+
 .. image:: https://img.shields.io/badge/docs-latest-blue.svg
    :target: https://gterreran.github.io/Workday_RSVP_Discord_Bot/
    :alt: Documentation
@@ -14,11 +18,14 @@ Workday RSVP Discord Bot
    :target: https://github.com/gterreran/Workday_RSVP_Discord_Bot/releases
    :alt: Latest version
 
+.. image:: https://img.shields.io/badge/python-3.11+-blue
+   :alt: Python 3.11+
+
 .. image:: https://img.shields.io/github/license/gterreran/Workday_RSVP_Discord_Bot
    :target: https://github.com/gterreran/Workday_RSVP_Discord_Bot/blob/main/LICENSE
    :alt: License
 
-A roduction-ready, lightweight RSVP Discord bot that collects attendance declarations for recurring workdays.
+A production-ready, lightweight RSVP Discord bot that collects attendance declarations for recurring workdays.
 
 Why this bot?
 -------------
