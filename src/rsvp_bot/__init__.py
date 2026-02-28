@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 def main(*args: Any, **kwargs: Any):
     """
     CLI entrypoint for the installed ``rsvp-bot`` script.

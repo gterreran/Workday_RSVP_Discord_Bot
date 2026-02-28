@@ -88,7 +88,7 @@ From the repository root:
    python -m pip install -U pip
 
 Install the package (base)
--------------------
+--------------------------
 
 Install the project so the ``rsvp_bot`` package is importable:
 

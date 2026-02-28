@@ -40,11 +40,14 @@ Classes
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import aiosqlite
 
 from ..config import DEFAULT_OFFSETS_MIN, DEFAULT_ROLLOVER_TIME, DEFAULT_ROLLOVER_WEEKDAY
+from ..utils import default_deadline_for, next_workday
 from .schema import ChannelColumns as CH
 from .schema import Tables as T
 
@@ -317,14 +320,55 @@ class ChannelsOps:
         raw = ",".join(str(x) for x in offsets_min) if offsets_min else DEFAULT_OFFSETS_MIN
         async with self.connect() as db:  # type: ignore[attr-defined]
             db.row_factory = aiosqlite.Row
-            await db.execute(
+            # If the channel row exists, a simple UPDATE is sufficient.
+            cur = await db.execute(
                 f"""
-                INSERT INTO {T.CHANNEL} ({CH.GUILD_ID}, {CH.CHANNEL_ID}, {CH.REMINDER_OFFSETS})
-                VALUES (?, ?, ?)
-                ON CONFLICT({CH.GUILD_ID}, {CH.CHANNEL_ID}) DO UPDATE SET {CH.REMINDER_OFFSETS}=excluded.{CH.REMINDER_OFFSETS}
+                SELECT 1
+                FROM {T.CHANNEL}
+                WHERE {CH.GUILD_ID}=? AND {CH.CHANNEL_ID}=?
                 """,
-                (guild_id, channel_id, raw),
+                (guild_id, channel_id),
             )
+            exists = await cur.fetchone()
+
+            if exists:
+                await db.execute(
+                    f"""
+                    UPDATE {T.CHANNEL}
+                    SET {CH.REMINDER_OFFSETS}=?
+                    WHERE {CH.GUILD_ID}=? AND {CH.CHANNEL_ID}=?
+                    """,
+                    (raw, guild_id, channel_id),
+                )
+            else:
+                # Channel has not been initialized yet. Insert a full row using defaults.
+                # These values will be overwritten later by the panel/service flows.
+                tz = ZoneInfo("America/Chicago")
+                wd = next_workday(date.today())
+                workday_date = wd.isoformat()
+                deadline_ts = int(default_deadline_for(wd, tz=tz))
+
+                await db.execute(
+                    f"""
+                    INSERT INTO {T.CHANNEL} (
+                        {CH.GUILD_ID}, {CH.CHANNEL_ID},
+                        {CH.REMINDER_OFFSETS}, {CH.WORKDAY_DATE},
+                        {CH.DEADLINE_TS}, {CH.RSVP_MESSAGE_ID},
+                        {CH.ROLLOVER_WEEKDAY}, {CH.ROLLOVER_TIME}
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        guild_id,
+                        channel_id,
+                        raw,
+                        workday_date,
+                        deadline_ts,
+                        0,  # rsvp_message_id (unset)
+                        int(DEFAULT_ROLLOVER_WEEKDAY),
+                        str(DEFAULT_ROLLOVER_TIME),
+                    ),
+                )
             await db.commit()
 
     async def get_rsvp_message_id(self, *, guild_id: int, channel_id: int) -> Optional[int]:
